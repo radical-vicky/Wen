@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Delete · Radilox{% endblock %}
+{% block content %}
+<div class="form-card">
+  <h1>Delete "{{ item.title }}"?</h1>
+  <p class="form-subtitle">This can't be undone. The file will be removed permanently.</p>
+  <form method="post">
+    {% csrf_token %}
+    <div style="display:flex; gap:10px;">
+      <a href="{% url 'media_hub:detail' pk=item.pk %}" class="btn" style="flex:1;">Cancel</a>
+      <button type="submit" class="btn btn-danger" style="flex:1;">Delete</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

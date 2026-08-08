@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ profile_user.username }} · Radilox{% endblock %}
+{% block content %}
+<div class="profile-header">
+  <div class="profile-avatar-wrap">
+    {% if profile_user.profile.avatar %}
+      <img class="profile-avatar" src="{{ profile_user.profile.avatar.url }}" alt="{{ profile_user.username }}">
+    {% else %}
+      <span class="profile-avatar">{{ profile_user.username|first|upper }}</span>
+    {% endif %}
+  </div>
+  <div style="flex:1;">
+    <h1 class="profile-name">{{ profile_user.profile.name_or_username }}</h1>
+    <div class="profile-username">@{{ profile_user.username }}</div>
+    {% if profile_user.profile.bio %}<p class="profile-bio">{{ profile_user.profile.bio }}</p>{% endif %}
+    <div class="profile-stats">
+      <span>{{ page_obj.paginator.count }} uploads</span>
+      {% if profile_user.profile.website %}
+        <a href="{{ profile_user.profile.website }}" target="_blank" rel="noopener" style="color:var(--cloud-blue);">{{ profile_user.profile.website }}</a>
+      {% endif %}
+    </div>
+  </div>
+  {% if is_own_profile %}
+    <a href="{% url 'accounts:edit_profile' %}" class="btn btn-sm">Edit profile</a>
+  {% endif %}
+</div>
+
+{% if page_obj.object_list %}
+<div class="grid">
+  {% for item in page_obj %}
+  <a class="card" href="{% url 'media_hub:detail' pk=item.pk %}">
+    <div class="card-media {% if item.is_audio %}is-audio{% endif %}">
+      {% if item.is_video %}
+        <video src="{{ item.file.url }}" muted preload="metadata"></video>
+        <div class="play-badge">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+      {% elif item.is_image %}
+        <img src="{{ item.file.url }}" alt="{{ item.title }}" loading="lazy">
+      {% else %}
+        {% if item.cover %}
+          <img src="{{ item.cover.url }}" alt="{{ item.title }}" loading="lazy">
+        {% else %}
+          <span class="type-ring" style="width:56px;height:56px;">
+            <svg width="24" height="24" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 9l12-2M6 21a3 3 0 100-6 3 3 0 000 6zM18 19a3 3 0 100-6 3 3 0 000 6z" fill="none" stroke="#fff" stroke-width="1.6"/></svg>
+          </span>
+        {% endif %}
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <p class="card-title">{{ item.title }}</p>
+      <div class="card-meta">
+        <span class="badge badge-{{ item.media_type }}">
+          <span class="badge-dot"></span>{% if item.is_audio %}song{% else %}{{ item.media_type }}{% endif %}
+        </span>
+        <span>{{ item.views_count }} views</span>
+      </div>
+      <div class="card-stats">
+        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.4 2.4 5 6 5c2 0 3.4 1 4 2.3C10.6 6 12 5 14 5c3.6 0 5.4 3.4 4 6.9C19.5 16.4 12 21 12 21z"/></svg> {{ item.likes_count }}</span>
+        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> {{ item.comments_count }}</span>
+        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg> {{ item.downloads_count }}</span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <h3>No uploads yet</h3>
+  <p>{% if is_own_profile %}Your videos, images and songs will show up here.{% else %}This user hasn't posted anything yet.{% endif %}</p>
+  {% if is_own_profile %}
+    <a href="{% url 'media_hub:upload' %}" class="btn btn-primary" style="margin-top:16px;">Upload something</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

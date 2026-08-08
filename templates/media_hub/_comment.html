@@ -1,0 +1,21 @@
+{% load static %}
+<li class="comment-item" id="comment-{{ comment.pk }}">
+  {% if comment.user.profile.avatar %}
+    <img class="avatar" src="{{ comment.user.profile.avatar.url }}" alt="">
+  {% else %}
+    <span class="avatar">{{ comment.user.username|first|upper }}</span>
+  {% endif %}
+  <div class="comment-body-wrap">
+    <div class="comment-bubble">
+      <span class="comment-author">{{ comment.user.username }}</span>
+      <span class="comment-time">{{ comment.created_at|timesince }} ago</span>
+      <div class="comment-text">{{ comment.body }}</div>
+    </div>
+    {% if request.user == comment.user or request.user == item.owner %}
+      <form class="ajax-delete-comment" method="post" action="{% url 'media_hub:delete_comment' pk=item.pk comment_id=comment.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="comment-delete" style="background:none;border:none;padding:0;cursor:pointer;">Delete</button>
+      </form>
+    {% endif %}
+  </div>
+</li>

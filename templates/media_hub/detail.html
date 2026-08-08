@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+{% block title %}{{ item.title }} · Radilox{% endblock %}
+{% block content %}
+{{ up_next_ids|json_script:"up-next-ids" }}
+
+<div class="detail-layout">
+  <div class="detail-main">
+
+    {% if item.is_video %}
+      <div class="detail-media">
+        <video id="player" src="{{ item.file.url }}" controls autoplay muted playsinline></video>
+      </div>
+    {% elif item.is_image %}
+      <div class="detail-media">
+        <img src="{{ item.file.url }}" alt="{{ item.title }}">
+      </div>
+    {% else %}
+      <div class="boom-player" id="boom-player"
+           data-src="{{ item.file.url }}"
+           data-title="{{ item.title }}"
+           data-artist="{{ item.owner.username }}"
+           data-cover="{% if item.cover %}{{ item.cover.url }}{% endif %}"
+           data-pk="{{ item.pk }}">
+        <audio id="boom-audio" preload="metadata" crossorigin="anonymous" src="{{ item.file.url }}"></audio>
+
+        <div class="boom-top">
+          <div class="boom-cover-wrap">
+            <div class="boom-cover" id="boom-cover">
+              {% if item.cover %}
+                <img src="{{ item.cover.url }}" alt="{{ item.title }}">
+              {% else %}
+                <svg width="48" height="48" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 9l12-2M6 21a3 3 0 100-6 3 3 0 000 6zM18 19a3 3 0 100-6 3 3 0 000 6z" fill="none" stroke="#fff" stroke-width="1.6"/></svg>
+              {% endif %}
+            </div>
+          </div>
+          <div class="boom-meta">
+            <p class="title" id="boom-title">{{ item.title }}</p>
+            <p class="artist" id="boom-artist">@{{ item.owner.username }}</p>
+          </div>
+        </div>
+
+        <div class="boom-visualizer" id="boom-visualizer"></div>
+
+        <div class="boom-seek-row">
+          <span id="boom-time-current">0:00</span>
+          <input type="range" class="boom-seek" id="boom-seek" min="0" max="100" value="0">
+          <span id="boom-time-total">0:00</span>
+        </div>
+
+        <div class="boom-controls">
+          <button type="button" class="boom-btn" id="boom-prev" title="Previous">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+          <button type="button" class="boom-btn boom-play" id="boom-play" title="Play/Pause">
+            <svg id="boom-play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button type="button" class="boom-btn" id="boom-next" title="Next">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
+          </button>
+        </div>
+
+        <div class="boom-eq">
+          <div class="boom-eq-label">Equalizer</div>
+          <div class="boom-eq-bands">
+            <div class="boom-eq-band">
+              <input type="range" id="eq-bass" min="-15" max="15" value="0" step="1">
+              <span>Bass</span>
+            </div>
+            <div class="boom-eq-band">
+              <input type="range" id="eq-mid" min="-15" max="15" value="0" step="1">
+              <span>Mid</span>
+            </div>
+            <div class="boom-eq-band">
+              <input type="range" id="eq-treble" min="-15" max="15" value="0" step="1">
+              <span>Treble</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="detail-header">
+      <div>
+        <h1 class="detail-title">{{ item.title }}</h1>
+        <span class="badge badge-{{ item.media_type }}">
+          <span class="badge-dot"></span>{% if item.is_audio %}song{% else %}{{ item.media_type }}{% endif %}
+        </span>
+        <span style="font-family: var(--font-mono); font-size:12px; color: var(--text-tertiary); margin-left: 10px;">{{ item.views_count }} views · {{ item.created_at|date:"M j, Y" }}</span>
+      </div>
+      {% if user == item.owner %}
+        <a href="{% url 'media_hub:delete' pk=item.pk %}" class="btn btn-danger btn-sm">Delete</a>
+      {% endif %}
+    </div>
+
+    {% if item.caption %}
+      <p class="detail-caption">{{ item.caption }}</p>
+    {% endif %}
+
+    <div class="detail-actions action-bar">
+      {% if user.is_authenticated %}
+        <button type="button" class="action-btn like-btn {% if is_liked %}liked{% endif %}" data-url="{% url 'media_hub:toggle_like' pk=item.pk %}">
+          <svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.4 2.4 5 6 5c2 0 3.4 1 4 2.3C10.6 6 12 5 14 5c3.6 0 5.4 3.4 4 6.9C19.5 16.4 12 21 12 21z"/></svg>
+          <span class="like-count">{{ item.likes_count }}</span>
+        </button>
+      {% else %}
+        <a href="{% url 'account_login' %}?next={{ request.path }}" class="action-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.4 2.4 5 6 5c2 0 3.4 1 4 2.3C10.6 6 12 5 14 5c3.6 0 5.4 3.4 4 6.9C19.5 16.4 12 21 12 21z"/></svg>
+          <span>{{ item.likes_count }}</span>
+        </a>
+      {% endif %}
+
+      <a href="#comments" class="action-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span id="comments-count-label">{{ item.comments_count }}</span>
+      </a>
+
+      <button type="button" class="action-btn share-btn" data-url="{% url 'media_hub:register_share' pk=item.pk %}" data-link="{{ request.build_absolute_uri }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg>
+        <span>Share</span>
+      </button>
+
+      <a href="{% url 'media_hub:download' pk=item.pk %}" class="action-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+        <span>Download · {{ item.downloads_count }}</span>
+      </a>
+    </div>
+
+    <a href="{% url 'accounts:profile' username=item.owner.username %}" class="detail-owner">
+      {% if item.owner.profile.avatar %}
+        <img class="avatar" src="{{ item.owner.profile.avatar.url }}" alt="">
+      {% else %}
+        <span class="avatar">{{ item.owner.username|first|upper }}</span>
+      {% endif %}
+      <span>
+        <div style="font-weight:600; font-size:14px;">{{ item.owner.profile.name_or_username }}</div>
+        <div style="font-size:12px; color: var(--text-secondary);">@{{ item.owner.username }}</div>
+      </span>
+    </a>
+
+    <div class="comments-section" id="comments">
+      <p class="section-title" id="comments-title">{{ item.comments_count }} comment{{ item.comments_count|pluralize }}</p>
+
+      {% if user.is_authenticated %}
+        <form method="post" action="{% url 'media_hub:add_comment' pk=item.pk %}" class="comment-form" id="comment-form">
+          {% csrf_token %}
+          {{ comment_form.body }}
+          <button type="submit" class="btn btn-primary btn-sm">Post</button>
+        </form>
+      {% else %}
+        <p class="help-text" style="margin-bottom:20px;"><a href="{% url 'account_login' %}?next={{ request.path }}" style="color: var(--cloud-blue);">Log in</a> to leave a comment.</p>
+      {% endif %}
+
+      <ul class="comment-list" id="comment-list">
+        {% for comment in comments %}
+          {% include "media_hub/_comment.html" %}
+        {% empty %}
+          <li id="no-comments" style="color: var(--text-tertiary); font-size: 14px;">No comments yet — be the first to say something.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    {% if more_from_creator %}
+      <div class="side-panel">
+        <h3>More from {{ item.owner.username }}</h3>
+        <div class="side-list">
+          {% for m in more_from_creator %}
+            <a class="side-item" href="{{ m.get_absolute_url }}">
+              <div class="side-thumb">
+                {% if m.is_video %}<video src="{{ m.file.url }}" muted></video>
+                {% elif m.is_image %}<img src="{{ m.file.url }}" alt="">
+                {% elif m.cover %}<img src="{{ m.cover.url }}" alt="">
+                {% else %}<span class="type-ring" style="width:28px;height:28px;"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13" fill="none" stroke="#fff" stroke-width="1.8"/></svg></span>{% endif %}
+              </div>
+              <div class="side-info">
+                <p class="t">{{ m.title }}</p>
+                <span class="m">{{ m.views_count }} views</span>
+              </div>
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% if discover_more %}
+      <div class="side-panel">
+        <h3>Discover more</h3>
+        <div class="side-list">
+          {% for m in discover_more %}
+            <a class="side-item" href="{{ m.get_absolute_url }}">
+              <div class="side-thumb">
+                {% if m.is_video %}<video src="{{ m.file.url }}" muted></video>
+                {% elif m.is_image %}<img src="{{ m.file.url }}" alt="">
+                {% elif m.cover %}<img src="{{ m.cover.url }}" alt="">
+                {% else %}<span class="type-ring" style="width:28px;height:28px;"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13" fill="none" stroke="#fff" stroke-width="1.8"/></svg></span>{% endif %}
+              </div>
+              <div class="side-info">
+                <p class="t">{{ m.title }}</p>
+                <span class="m">by {{ m.owner.username }}</span>
+              </div>
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </aside>
+</div>
+
+<script>
+(function () {
+  function getCookie(name) {
+    const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return match ? match.pop() : '';
+  }
+
+  /* ---------- AJAX comments: playback never has to stop to comment ---------- */
+  const commentForm = document.getElementById('comment-form');
+  if (commentForm) {
+    commentForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const formData = new FormData(commentForm);
+      fetch(commentForm.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData,
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.ok) return;
+          const list = document.getElementById('comment-list');
+          const empty = document.getElementById('no-comments');
+          if (empty) empty.remove();
+          list.insertAdjacentHTML('afterbegin', data.html);
+          document.getElementById('comments-title').textContent = data.comments_count + ' comment' + (data.comments_count === 1 ? '' : 's');
+          document.getElementById('comments-count-label').textContent = data.comments_count;
+          commentForm.reset();
+        });
+    });
+  }
+
+  document.addEventListener('submit', function (e) {
+    if (!e.target.classList.contains('ajax-delete-comment')) return;
+    e.preventDefault();
+    const form = e.target;
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCookie('csrftoken') },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.ok) return;
+        form.closest('.comment-item').remove();
+        document.getElementById('comments-title').textContent = data.comments_count + ' comment' + (data.comments_count === 1 ? '' : 's');
+        document.getElementById('comments-count-label').textContent = data.comments_count;
+      });
+  });
+
+  /* ---------- Autoplay next: video ---------- */
+  const video = document.getElementById('player');
+  if (video) {
+    const firstNext = document.querySelector('.side-item');
+    if (firstNext) {
+      video.addEventListener('ended', function () {
+        window.location.href = firstNext.getAttribute('href');
+      });
+    }
+  }
+
+  /* ---------- Boom Player: audio ---------- */
+  const boom = document.getElementById('boom-player');
+  if (!boom) return;
+
+  const audio = document.getElementById('boom-audio');
+  const cover = document.getElementById('boom-cover');
+  const playBtn = document.getElementById('boom-play');
+  const playIcon = document.getElementById('boom-play-icon');
+  const prevBtn = document.getElementById('boom-prev');
+  const nextBtn = document.getElementById('boom-next');
+  const seek = document.getElementById('boom-seek');
+  const curEl = document.getElementById('boom-time-current');
+  const totalEl = document.getElementById('boom-time-total');
+  const titleEl = document.getElementById('boom-title');
+  const artistEl = document.getElementById('boom-artist');
+  const visualizer = document.getElementById('boom-visualizer');
+
+  const ICON_PLAY = '<path d="M8 5v14l11-7z"/>';
+  const ICON_PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+
+  // Build the visualizer bars
+  const BAR_COUNT = 40;
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    visualizer.appendChild(bar);
+  }
+  const bars = visualizer.querySelectorAll('.bar');
+
+  function fmtTime(s) {
+    if (!isFinite(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    return m + ':' + sec;
+  }
+
+  // Up-next queue (list of pks), populated from more-from-creator + discover-more
+  let queue = [];
+  try { queue = JSON.parse(document.getElementById('up-next-ids').textContent); } catch (e) { queue = []; }
+  let queueIndex = -1;
+
+  // --- Web Audio graph: source -> bass -> mid -> treble -> analyser -> destination ---
+  let audioCtx, sourceNode, bassFilter, midFilter, trebleFilter, analyser, dataArray, rafId;
+  let audioGraphFailed = false;
+
+  function ensureAudioGraph() {
+    if (audioCtx || audioGraphFailed) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sourceNode = audioCtx.createMediaElementSource(audio);
+
+      bassFilter = audioCtx.createBiquadFilter();
+      bassFilter.type = 'lowshelf';
+      bassFilter.frequency.value = 200;
+
+      midFilter = audioCtx.createBiquadFilter();
+      midFilter.type = 'peaking';
+      midFilter.frequency.value = 1000;
+      midFilter.Q.value = 0.9;
+
+      trebleFilter = audioCtx.createBiquadFilter();
+      trebleFilter.type = 'highshelf';
+      trebleFilter.frequency.value = 3000;
+
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 128;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      sourceNode.connect(bassFilter);
+      bassFilter.connect(midFilter);
+      midFilter.connect(trebleFilter);
+      trebleFilter.connect(analyser);
+      analyser.connect(audioCtx.destination);
+
+      document.getElementById('eq-bass').addEventListener('input', (e) => { bassFilter.gain.value = parseFloat(e.target.value); });
+      document.getElementById('eq-mid').addEventListener('input', (e) => { midFilter.gain.value = parseFloat(e.target.value); });
+      document.getElementById('eq-treble').addEventListener('input', (e) => { trebleFilter.gain.value = parseFloat(e.target.value); });
+    } catch (err) {
+      // If the Web Audio graph can't be built (e.g. a CORS quirk on this
+      // resource), fall back to plain <audio> playback rather than risking
+      // silence — the track still plays, just without EQ/visualizer.
+      console.warn('Equalizer unavailable, falling back to plain playback:', err);
+      audioGraphFailed = true;
+      audioCtx = null;
+      document.querySelector('.boom-eq').style.display = 'none';
+    }
+  }
+
+  function drawVisualizer() {
+    rafId = requestAnimationFrame(drawVisualizer);
+    if (!analyser) return;
+    analyser.getByteFrequencyData(dataArray);
+    const step = Math.floor(dataArray.length / BAR_COUNT) || 1;
+    bars.forEach((bar, i) => {
+      const v = dataArray[i * step] || 0;
+      bar.style.height = Math.max(3, (v / 255) * 64) + 'px';
+    });
+  }
+
+  function stopVisualizer() {
+    if (rafId) cancelAnimationFrame(rafId);
+    bars.forEach((bar) => { bar.style.height = '3px'; });
+  }
+
+  function updateMediaSession(track) {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title,
+      artist: '@' + track.artist,
+      album: 'Radilox',
+      artwork: track.cover ? [{ src: track.cover, sizes: '512x512', type: 'image/jpeg' }] : [],
+    });
+  }
+
+  function setTrackUI(track) {
+    titleEl.textContent = track.title;
+    artistEl.textContent = '@' + track.artist;
+    cover.innerHTML = track.cover
+      ? '<img src="' + track.cover + '" alt="">'
+      : '<svg width="48" height="48" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 9l12-2M6 21a3 3 0 100-6 3 3 0 000 6zM18 19a3 3 0 100-6 3 3 0 000 6z" fill="none" stroke="#fff" stroke-width="1.6"/></svg>';
+    updateMediaSession(track);
+  }
+
+  function playCurrent() {
+    ensureAudioGraph();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    audio.play();
+  }
+
+  function loadTrack(pk, autoplay) {
+    fetch('/m/' + pk + '/json/')
+      .then((r) => r.json())
+      .then((track) => {
+        audio.src = track.src;
+        setTrackUI(track);
+        boom.dataset.pk = track.id;
+        if (autoplay) playCurrent();
+      });
+  }
+
+  playBtn.addEventListener('click', function () {
+    ensureAudioGraph();
+    if (audio.paused) { playCurrent(); } else { audio.pause(); }
+  });
+
+  audio.addEventListener('play', function () {
+    playIcon.innerHTML = ICON_PAUSE;
+    cover.classList.add('spinning');
+    drawVisualizer();
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  });
+  audio.addEventListener('pause', function () {
+    playIcon.innerHTML = ICON_PLAY;
+    cover.classList.remove('spinning');
+    stopVisualizer();
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  });
+  audio.addEventListener('timeupdate', function () {
+    curEl.textContent = fmtTime(audio.currentTime);
+    if (audio.duration) seek.value = (audio.currentTime / audio.duration) * 100;
+  });
+  audio.addEventListener('loadedmetadata', function () {
+    totalEl.textContent = fmtTime(audio.duration);
+  });
+  seek.addEventListener('input', function () {
+    if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration;
+  });
+
+  function advance(delta) {
+    if (!queue.length) return;
+    queueIndex = queueIndex === -1 ? 0 : queueIndex + delta;
+    if (queueIndex < 0) queueIndex = 0;
+    if (queueIndex >= queue.length) { audio.pause(); return; }
+    loadTrack(queue[queueIndex], true);
+  }
+
+  nextBtn.addEventListener('click', function () { advance(1); });
+  prevBtn.addEventListener('click', function () {
+    if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+    advance(-1);
+  });
+  audio.addEventListener('ended', function () { advance(1); });
+
+  // Set initial Media Session metadata for the currently-loaded track
+  setTrackUI({
+    title: boom.dataset.title,
+    artist: boom.dataset.artist,
+    cover: boom.dataset.cover,
+  });
+
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.setActionHandler('play', playCurrent);
+    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+    navigator.mediaSession.setActionHandler('previoustrack', () => prevBtn.click());
+    navigator.mediaSession.setActionHandler('nexttrack', () => nextBtn.click());
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (details.seekTime !== undefined) audio.currentTime = details.seekTime;
+    });
+  }
+})();
+</script>
+{% endblock %}

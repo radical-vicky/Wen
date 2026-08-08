@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Edit profile · Radilox{% endblock %}
+{% block content %}
+<div class="form-card">
+  <h1>Edit profile</h1>
+  <p class="form-subtitle">Update how others see you.</p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {{ field.errors }}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary btn-block">Save changes</button>
+  </form>
+</div>
+{% endblock %}

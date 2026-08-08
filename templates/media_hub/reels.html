@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Reels · Radilox{% endblock %}
+{% block content %}
+
+{% if videos %}
+<div class="reel-top-bar">
+  <a href="{% url 'media_hub:feed' %}" class="reel-back-btn" title="Back to feed">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  </a>
+</div>
+
+<div class="reels-container" id="reels-container">
+  {% for item in videos %}
+  <section class="reel-slide" data-pk="{{ item.pk }}">
+    <video
+      class="reel-video"
+      src="{{ item.file.url }}"
+      loop
+      muted
+      playsinline
+      preload="{% if forloop.first %}auto{% else %}none{% endif %}"
+      data-src="{{ item.file.url }}"
+    ></video>
+    <div class="reel-scrim-bottom"></div>
+    <div class="reel-mute-hint"><svg viewBox="0 0 24 24" fill="currentColor" class="icon-muted"><path d="M16.5 12A4.5 4.5 0 0014 8v2a2.5 2.5 0 010 4v2a4.5 4.5 0 002.5-4zM19 12c0 1.5-.6 2.9-1.5 3.9l1.4 1.4A7.9 7.9 0 0021 12a7.9 7.9 0 00-2.1-5.3l-1.4 1.4C18.4 9.1 19 10.5 19 12zM4.3 3L3 4.3 7 8.3H3v7.4h4l5 5v-6.7l4.5 4.5c-.7.5-1.4.9-2.2 1.1v2c1.3-.3 2.5-.9 3.6-1.7l2 2 1.3-1.3L4.3 3zM12 4L9.6 6.4 12 8.8V4z"/></svg></div>
+
+    <div class="reel-info">
+      <a href="{% url 'accounts:profile' username=item.owner.username %}" class="owner">
+        {% if item.owner.profile.avatar %}
+          <img class="avatar" src="{{ item.owner.profile.avatar.url }}" alt="">
+        {% else %}
+          <span class="avatar">{{ item.owner.username|first|upper }}</span>
+        {% endif %}
+        @{{ item.owner.username }}
+      </a>
+      <p class="title">{{ item.title }}</p>
+      {% if item.caption %}<p class="caption">{{ item.caption }}</p>{% endif %}
+    </div>
+
+    <div class="reel-rail">
+      {% if user.is_authenticated %}
+        <button type="button" class="reel-rail-btn like-btn {% if item.viewer_liked %}liked{% endif %}" data-url="{% url 'media_hub:toggle_like' pk=item.pk %}">
+          <span class="circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.4 2.4 5 6 5c2 0 3.4 1 4 2.3C10.6 6 12 5 14 5c3.6 0 5.4 3.4 4 6.9C19.5 16.4 12 21 12 21z"/></svg></span>
+          <span class="count like-count">{{ item.likes_count }}</span>
+        </button>
+      {% else %}
+        <a href="{% url 'account_login' %}?next={% url 'media_hub:reels' %}" class="reel-rail-btn">
+          <span class="circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.4 2.4 5 6 5c2 0 3.4 1 4 2.3C10.6 6 12 5 14 5c3.6 0 5.4 3.4 4 6.9C19.5 16.4 12 21 12 21z"/></svg></span>
+          <span class="count">{{ item.likes_count }}</span>
+        </a>
+      {% endif %}
+
+      <a href="{% url 'media_hub:detail' pk=item.pk %}#comments" class="reel-rail-btn">
+        <span class="circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span>
+        <span class="count">{{ item.comments_count }}</span>
+      </a>
+
+      <button type="button" class="reel-rail-btn share-btn" data-url="{% url 'media_hub:register_share' pk=item.pk %}" data-link="{{ request.scheme }}://{{ request.get_host }}{% url 'media_hub:detail' pk=item.pk %}">
+        <span class="circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg></span>
+        <span class="count">Share</span>
+      </button>
+
+      <a href="{% url 'media_hub:download' pk=item.pk %}" class="reel-rail-btn">
+        <span class="circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></span>
+        <span class="count">{{ item.downloads_count }}</span>
+      </a>
+
+      <a href="{% url 'media_hub:detail' pk=item.pk %}" class="reel-rail-btn" title="Open full page">
+        <span class="circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span>
+      </a>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+
+<script>
+(function () {
+  const container = document.getElementById('reels-container');
+  const slides = Array.from(document.querySelectorAll('.reel-slide'));
+  let current = null;
+
+  function playSlide(slide) {
+    const video = slide.querySelector('.reel-video');
+    if (!video) return;
+    if (video.getAttribute('src') !== video.dataset.src) {
+      video.setAttribute('src', video.dataset.src);
+    }
+    video.muted = window.__reelsMuted !== false; // default muted, like TikTok, until the user taps
+    video.play().catch(() => {});
+  }
+
+  function pauseSlide(slide) {
+    const video = slide.querySelector('.reel-video');
+    if (video) video.pause();
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+        if (current && current !== entry.target) pauseSlide(current);
+        current = entry.target;
+        playSlide(current);
+      } else if (entry.target === current && !entry.isIntersecting) {
+        pauseSlide(entry.target);
+      }
+    });
+  }, { threshold: [0, 0.6, 1] });
+
+  slides.forEach((slide) => observer.observe(slide));
+
+  // Tap anywhere on a slide (outside the action rail/info) to toggle mute —
+  // mirrors TikTok's tap-to-unmute since browsers block audio-on autoplay.
+  slides.forEach((slide) => {
+    slide.addEventListener('click', (e) => {
+      if (e.target.closest('.reel-rail') || e.target.closest('.reel-info') || e.target.closest('.reel-top-bar')) return;
+      const video = slide.querySelector('.reel-video');
+      const hint = slide.querySelector('.reel-mute-hint');
+      window.__reelsMuted = !video.muted ? true : false;
+      video.muted = window.__reelsMuted;
+      hint.classList.add('show');
+      setTimeout(() => hint.classList.remove('show'), 500);
+    });
+  });
+
+  // Keyboard: arrow up/down to move between reels
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (!current) return;
+    const idx = slides.indexOf(current);
+    const nextIdx = e.key === 'ArrowDown' ? idx + 1 : idx - 1;
+    if (nextIdx >= 0 && nextIdx < slides.length) {
+      slides[nextIdx].scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+
+  // Start the very first slide immediately (IntersectionObserver fires on
+  // initial layout too, but this avoids relying on timing on slow devices).
+  if (slides.length) playSlide(slides[0]);
+})();
+</script>
+{% else %}
+<div class="reels-empty">
+  <h2 style="margin:0;">No videos yet</h2>
+  <p style="color: rgba(255,255,255,0.7); max-width:320px;">Once someone uploads a video, it'll show up here in fullscreen.</p>
+  <a href="{% url 'media_hub:feed' %}" class="btn btn-primary">Back to feed</a>
+</div>
+{% endif %}
+{% endblock %}

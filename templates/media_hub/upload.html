@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block title %}Upload · Radilox{% endblock %}
+{% block content %}
+<div class="form-card form-wide">
+  <h1>Upload to Radilox</h1>
+  <p class="form-subtitle">Files go straight to Cloudinary from your browser — no waiting on our server.</p>
+
+  <div class="field">
+    <label>What are you sharing?</label>
+    <div class="filter-tabs" id="type-tabs" style="width:100%; justify-content:space-between;">
+      <button type="button" class="filter-tab active" data-type="video" style="flex:1; text-align:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg> Video
+      </button>
+      <button type="button" class="filter-tab" data-type="image" style="flex:1; text-align:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Image
+      </button>
+      <button type="button" class="filter-tab" data-type="audio" style="flex:1; text-align:center; gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> Song(s)
+      </button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="upload-dropzone">File<span id="file-label-suffix"></span></label>
+    <div id="upload-dropzone" style="border:2px dashed var(--border); border-radius: var(--radius-md); padding: 32px; text-align:center; cursor:pointer; background: rgba(255,255,255,0.4); transition: all .15s ease;">
+      <div id="dropzone-idle">
+        <div style="margin-bottom:8px; color: var(--cloud-blue);">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v12M7 8l5-5 5 5M5 21h14"/></svg>
+        </div>
+        <p style="margin:0; font-weight:600; font-size:14px;" id="dropzone-title">Drag &amp; drop, or click to browse</p>
+        <p class="help-text" id="dropzone-hint">MP4/MOV for video, up to ~500MB</p>
+      </div>
+      <div id="dropzone-file" style="display:none;">
+        <div id="preview-wrap" style="margin-bottom:10px;"></div>
+        <p id="file-name" style="margin:0; font-weight:600; font-size:13px;"></p>
+        <p class="help-text" id="dropzone-file-hint">Click to choose a different file</p>
+      </div>
+    </div>
+    <input type="file" id="file-input" style="display:none;">
+  </div>
+
+  <!-- Multi-song track list: one row per selected file, each with its own editable title -->
+  <div class="field" id="track-list-field" style="display:none;">
+    <label>Tracks (<span id="track-count">0</span>)</label>
+    <div id="track-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+  </div>
+
+  <div id="progress-wrap" style="display:none; margin-top:10px;">
+    <div style="height:8px; border-radius:999px; background: rgba(47,111,237,0.12); overflow:hidden;">
+      <div id="progress-bar" style="height:100%; width:0%; background: var(--gradient-brand); transition: width .15s ease;"></div>
+    </div>
+    <p class="help-text" id="progress-label">Uploading… 0%</p>
+  </div>
+
+  <div class="field" id="cover-field" style="display:none;">
+    <label for="cover-input">Cover art <span style="color:var(--text-tertiary); text-transform:none; font-weight:400;">(optional — applied to every track in this batch)</span></label>
+    <input type="file" id="cover-input" accept="image/*" class="input">
+  </div>
+
+  <div class="field" id="title-field">
+    <label for="title-input">Title</label>
+    <input type="text" id="title-input" class="input" placeholder="Give it a title" maxlength="120">
+  </div>
+
+  <div class="field">
+    <label for="caption-input">Caption <span id="caption-suffix" style="color:var(--text-tertiary); text-transform:none; font-weight:400;"></span></label>
+    <textarea id="caption-input" class="input" rows="3" placeholder="Optional caption" maxlength="280"></textarea>
+  </div>
+
+  <p class="errorlist" id="upload-error" style="display:none;"></p>
+
+  <button type="button" class="btn btn-primary btn-block" id="publish-btn">Publish</button>
+</div>
+
+<script>
+(function () {
+  const cloudName = "{{ CLOUDINARY_CLOUD_NAME|default:'' }}";
+  const uploadPreset = "{{ CLOUDINARY_UPLOAD_PRESET }}";
+  const uploadUrl = "{{ CLOUDINARY_UPLOAD_URL|default:'' }}";
+  const profileUrl = "{% url 'accounts:profile' username=user.username %}";
+
+  const tabs = document.querySelectorAll('#type-tabs .filter-tab');
+  const dropzone = document.getElementById('upload-dropzone');
+  const fileInput = document.getElementById('file-input');
+  const coverField = document.getElementById('cover-field');
+  const coverInput = document.getElementById('cover-input');
+  const dropzoneIdle = document.getElementById('dropzone-idle');
+  const dropzoneFile = document.getElementById('dropzone-file');
+  const previewWrap = document.getElementById('preview-wrap');
+  const fileNameEl = document.getElementById('file-name');
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressBar = document.getElementById('progress-bar');
+  const progressLabel = document.getElementById('progress-label');
+  const errorEl = document.getElementById('upload-error');
+  const publishBtn = document.getElementById('publish-btn');
+  const dropzoneHint = document.getElementById('dropzone-hint');
+  const dropzoneTitle = document.getElementById('dropzone-title');
+  const fileLabelSuffix = document.getElementById('file-label-suffix');
+  const captionSuffix = document.getElementById('caption-suffix');
+  const titleField = document.getElementById('title-field');
+  const trackListField = document.getElementById('track-list-field');
+  const trackList = document.getElementById('track-list');
+  const trackCount = document.getElementById('track-count');
+
+  let mediaType = 'video';
+  // selectedFiles is always an array — a single video/image upload is just
+  // an array of length 1, so the publish logic doesn't need two code paths.
+  let selectedFiles = [];
+  const accepts = { video: 'video/*', image: 'image/*', audio: 'audio/*' };
+  const hints = {
+    video: 'MP4/MOV for video, up to ~500MB',
+    image: 'JPG/PNG/WebP, up to ~50MB',
+    audio: 'MP3/WAV/M4A — select multiple to upload a batch of songs at once',
+  };
+
+  function isMultiMode() {
+    return mediaType === 'audio';
+  }
+
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      tabs.forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      mediaType = tab.dataset.type;
+      fileInput.setAttribute('accept', accepts[mediaType]);
+      fileInput.multiple = isMultiMode();
+      dropzoneHint.textContent = hints[mediaType];
+      fileLabelSuffix.textContent = isMultiMode() ? ' (choose one or more)' : '';
+      coverField.style.display = mediaType === 'audio' ? 'block' : 'none';
+      captionSuffix.textContent = isMultiMode() ? '(applied to every track)' : '';
+      resetFiles();
+    });
+  });
+  fileInput.setAttribute('accept', accepts.video);
+
+  function resetFiles() {
+    selectedFiles = [];
+    dropzoneIdle.style.display = 'block';
+    dropzoneFile.style.display = 'none';
+    trackListField.style.display = 'none';
+    titleField.style.display = 'block';
+    trackList.innerHTML = '';
+    fileInput.value = '';
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = 'var(--cloud-blue)'; });
+  dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = 'var(--border)'; });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = 'var(--border)';
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFiles(fileInput.files);
+  });
+
+  function stripExt(name) {
+    const idx = name.lastIndexOf('.');
+    return idx > 0 ? name.slice(0, idx) : name;
+  }
+
+  function handleFiles(fileList) {
+    const files = Array.from(fileList);
+    selectedFiles = isMultiMode() ? files : [files[0]];
+
+    if (isMultiMode() && selectedFiles.length > 1) {
+      // Multi-track mode: hide the single dropzone preview + single title
+      // field, show one row per track with its own editable title.
+      dropzoneIdle.style.display = 'none';
+      dropzoneFile.style.display = 'none';
+      titleField.style.display = 'none';
+      trackListField.style.display = 'block';
+      trackCount.textContent = selectedFiles.length;
+      trackList.innerHTML = '';
+      selectedFiles.forEach((file, i) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:rgba(255,255,255,0.5);';
+        row.innerHTML =
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2f6fed" stroke-width="2" style="flex-shrink:0;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' +
+          '<input type="text" class="input track-title-input" data-index="' + i + '" value="' + stripExt(file.name).replace(/"/g, '&quot;') + '" maxlength="120" style="flex:1;">' +
+          '<span class="help-text" style="white-space:nowrap;">' + (file.size / (1024 * 1024)).toFixed(1) + ' MB</span>';
+        trackList.appendChild(row);
+      });
+      return;
+    }
+
+    // Single-file mode (video, image, or exactly one song)
+    const file = selectedFiles[0];
+    dropzoneIdle.style.display = 'none';
+    dropzoneFile.style.display = 'block';
+    titleField.style.display = 'block';
+    trackListField.style.display = 'none';
+    fileNameEl.textContent = file.name + ' (' + (file.size / (1024 * 1024)).toFixed(1) + ' MB)';
+    if (!document.getElementById('title-input').value) {
+      document.getElementById('title-input').value = stripExt(file.name);
+    }
+    previewWrap.innerHTML = '';
+    if (mediaType === 'image' && file.type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      img.style.cssText = 'max-height:140px; border-radius:8px;';
+      previewWrap.appendChild(img);
+    } else if (mediaType === 'video' && file.type.startsWith('video/')) {
+      const vid = document.createElement('video');
+      vid.src = URL.createObjectURL(file);
+      vid.style.cssText = 'max-height:140px; border-radius:8px;';
+      vid.muted = true;
+      previewWrap.appendChild(vid);
+    } else {
+      previewWrap.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2f6fed" stroke-width="1.6"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+    }
+  }
+
+  function showError(msg) {
+    errorEl.innerHTML = msg;
+    errorEl.style.display = 'block';
+  }
+
+  function uploadToCloudinary(file, onProgress) {
+    return new Promise((resolve, reject) => {
+      if (!cloudName || !uploadUrl) {
+        reject(new Error('Cloudinary is not configured yet (missing CLOUDINARY_CLOUD_NAME / preset). Ask the site admin to set it up.'));
+        return;
+      }
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', uploadUrl, true);
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+      });
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          let detail = 'HTTP ' + xhr.status;
+          try {
+            const parsed = JSON.parse(xhr.responseText);
+            if (parsed && parsed.error && parsed.error.message) detail = parsed.error.message;
+          } catch (e) { /* response wasn't JSON, keep the generic detail */ }
+          reject(new Error('Cloudinary rejected the upload: ' + detail));
+        }
+      };
+      xhr.onerror = () => reject(new Error('Network error while uploading'));
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', uploadPreset);
+      xhr.send(formData);
+    });
+  }
+
+  function getCookie(name) {
+    const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return match ? match.pop() : '';
+  }
+
+  async function publishOne(file, title, caption, coverPublicId) {
+    const mainResult = await uploadToCloudinary(file, (frac) => {
+      progressLabel.textContent = 'Uploading "' + title + '"… ' + Math.round(frac * 100) + '%';
+      progressBar.style.width = (frac * 100) + '%';
+    });
+    const resp = await fetch("{% url 'media_hub:finalize_upload' %}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+      body: JSON.stringify({
+        title: title,
+        caption: caption,
+        media_type: mediaType,
+        public_id: mainResult.public_id,
+        resource_type: mainResult.resource_type,
+        format: mainResult.format,
+        version: mainResult.version,
+        cover_public_id: coverPublicId,
+      }),
+    });
+    if (!resp.ok) throw new Error('Could not save "' + title + '" — please try again.');
+    return resp.json();
+  }
+
+  publishBtn.addEventListener('click', async function () {
+    errorEl.style.display = 'none';
+    const caption = document.getElementById('caption-input').value.trim();
+
+    if (!selectedFiles.length) { showError('Choose a file first.'); return; }
+
+    const multi = isMultiMode() && selectedFiles.length > 1;
+    let items = [];
+    if (multi) {
+      const inputs = document.querySelectorAll('.track-title-input');
+      items = selectedFiles.map((file, i) => ({ file, title: inputs[i].value.trim() || stripExt(file.name) }));
+    } else {
+      const title = document.getElementById('title-input').value.trim();
+      if (!title) { showError('Give it a title.'); return; }
+      items = [{ file: selectedFiles[0], title }];
+    }
+
+    publishBtn.disabled = true;
+    progressWrap.style.display = 'block';
+
+    try {
+      let coverPublicId = '';
+      if (mediaType === 'audio' && coverInput.files.length) {
+        publishBtn.textContent = 'Uploading cover art…';
+        progressLabel.textContent = 'Uploading cover art…';
+        const coverResult = await uploadToCloudinary(coverInput.files[0]);
+        coverPublicId = coverResult.public_id;
+      }
+
+      const results = [];
+      const errors = [];
+      for (let i = 0; i < items.length; i++) {
+        publishBtn.textContent = multi ? 'Uploading ' + (i + 1) + ' of ' + items.length + '…' : 'Uploading…';
+        try {
+          const data = await publishOne(items[i].file, items[i].title, caption, coverPublicId);
+          results.push(data);
+        } catch (err) {
+          errors.push(items[i].title + ': ' + (err.message || 'failed'));
+        }
+      }
+
+      if (!multi) {
+        if (errors.length) throw new Error(errors[0]);
+        window.location.href = results[0].redirect_url;
+        return;
+      }
+
+      // Batch mode: report a summary and land on the profile page, where
+      // every successfully-published track will now show up.
+      if (errors.length) {
+        showError(
+          results.length + ' of ' + items.length + ' track(s) uploaded. Failed: <br>' +
+          errors.map((e) => '&bull; ' + e).join('<br>')
+        );
+        publishBtn.disabled = false;
+        publishBtn.textContent = 'Publish';
+        progressWrap.style.display = 'none';
+        if (results.length) {
+          setTimeout(() => { window.location.href = profileUrl; }, 4000);
+        }
+      } else {
+        progressLabel.textContent = 'All ' + results.length + ' tracks published!';
+        window.location.href = profileUrl;
+      }
+    } catch (err) {
+      showError(err.message || 'Something went wrong.');
+      publishBtn.disabled = false;
+      publishBtn.textContent = 'Publish';
+      progressWrap.style.display = 'none';
+    }
+  });
+})();
+</script>
+{% endblock %}
