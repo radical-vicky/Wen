@@ -10,6 +10,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production-please')
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+# Vercel assigns a new *.vercel.app domain per project (and another one per
+# preview deployment) — rather than needing ALLOWED_HOSTS updated by hand
+# every time a project gets renamed or redeployed, a leading-dot entry
+# tells Django to trust any subdomain of vercel.app automatically. This is
+# safe: it doesn't open up arbitrary hosts, only Vercel's own domain space.
+ALLOWED_HOSTS.append('.vercel.app')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
